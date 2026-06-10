@@ -101,9 +101,9 @@ if [ "${1:-}" = "--check" ]; then
       exit 0
     fi
     echo "  server: UNREACHABLE"
-    echo "  RESULT: FAIL — start the host server, then re-check:"
-    echo "          python3 \$CLAUDE_PLUGIN_ROOT/scripts/tts-host-server.py   (run on the HOST)"
-    echo "          plain Linux Docker also needs: --add-host=host.docker.internal:host-gateway"
+    echo "  RESULT: FAIL — start the host TTS server ON THE HOST, then re-check:"
+    echo "          curl -fsSL https://raw.githubusercontent.com/acefei/agent-accelerator/main/plugins/accelerator-core/scripts/tts-host-server.py | python3"
+    echo "          (plain Linux Docker also needs: --add-host=host.docker.internal:host-gateway)"
     exit 1
   fi
   eng="$(native_engine)"

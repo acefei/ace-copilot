@@ -53,12 +53,16 @@ sudo apt-get install -y jq speech-dispatcher espeak-ng   # Debian/Ubuntu
 ```
 
 ### Docker container (audio bridged to the host)
-1. **On the host**, start the TTS server (it owns the speakers):
+1. **On the host**, start the TTS server (it owns the speakers). No checkout or `docker cp`
+   needed — run it straight from GitHub:
    ```bash
-   python3 "$CLAUDE_PLUGIN_ROOT/scripts/tts-host-server.py"   # listens on 0.0.0.0:8765
+   curl -fsSL https://raw.githubusercontent.com/acefei/agent-accelerator/main/plugins/accelerator-core/scripts/tts-host-server.py | python3
    ```
-   Outside Claude, use the repo path to the script. Keep it running across reboots with
-   launchd (macOS), systemd (Linux), or Task Scheduler (Windows).
+   It listens on `0.0.0.0:8765` and speaks via the host's engine. To change the port,
+   set it on the pipe: `curl -fsSL <url> | PORT=9000 python3 -`. Keep it running across
+   reboots with launchd (macOS), systemd (Linux), or Task Scheduler (Windows).
+   (Requires the repo to be public. Piping a URL into `python3` executes remote code — pin
+   `main` to a specific tag/commit in the URL if you want an immutable, audited version.)
 2. Ensure the **container** can reach the host. Docker Desktop (macOS/Windows) provides
    `host.docker.internal` automatically. On plain Linux Docker, run the container with
    `--add-host=host.docker.internal:host-gateway`.

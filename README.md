@@ -8,9 +8,9 @@ MCP servers that users can install into Claude Code.
 
 ## Plugins
 
-| Plugin | Skills | Description |
-|--------|--------|-------------|
-| [`accelerator-core`](plugins/accelerator-core) | `speak-aloud`, `remote-ssh-ops` | Read Claude's output aloud via TTS (incl. Docker→host bridge), and a primitive for safe remote work over SSH. |
+| Plugin | Provides | Description |
+|--------|----------|-------------|
+| [`accelerator-core`](plugins/accelerator-core) | `/speak-aloud` command + `remote-ssh-ops` skill | Read Claude's replies aloud via TTS (toggleable, incl. Docker→host bridge), and a primitive for safe remote work over SSH. |
 
 ## Install (for users)
 

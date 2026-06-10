@@ -96,6 +96,7 @@ if [ "${1:-}" = "--check" ]; then
     fi
     if curl -s -m 5 "$url" >/dev/null 2>&1; then
       echo "  server: reachable"
+      if command -v jq >/dev/null 2>&1 || command -v python3 >/dev/null 2>&1; then echo "  parser: jq/python3 present"; else echo "  parser: MISSING — install jq or python3 so the hook can extract the message"; fi
       echo "  RESULT: PASS — host TTS server is up"
       rm -f "$MARKER" 2>/dev/null
       exit 0
@@ -110,7 +111,7 @@ if [ "${1:-}" = "--check" ]; then
   echo "  mode:   native host TTS"
   if [ -n "$eng" ]; then
     echo "  engine: $eng"
-    if command -v jq >/dev/null 2>&1; then echo "  jq:     present"; else echo "  jq:     MISSING — install jq to parse the transcript"; fi
+    if command -v jq >/dev/null 2>&1 || command -v python3 >/dev/null 2>&1; then echo "  parser: jq/python3 present"; else echo "  parser: MISSING — install jq or python3 to extract the message"; fi
     echo "  RESULT: PASS — $eng available"
     exit 0
   fi
@@ -130,15 +131,28 @@ raw=$(cat)
 # If stdin looks like Stop-hook JSON, pull the last assistant text from the transcript.
 text=""
 if printf '%s' "$raw" | head -c1 | grep -q '{'; then
-  transcript=$(printf '%s' "$raw" \
-    | sed -n 's/.*"transcript_path"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -1)
-  if [ -n "${transcript:-}" ] && [ -f "$transcript" ] && command -v jq >/dev/null 2>&1; then
-    text=$(tail -n 80 "$transcript" \
-      | jq -r 'select(.type=="assistant") | .message.content[]? | select(.type=="text") | .text' 2>/dev/null \
-      | tail -n 1)
+  # Stop-hook JSON. Prefer `last_assistant_message` — exactly the response the user
+  # just read — extracted with jq or python3 (so jq is not a hard requirement).
+  if command -v jq >/dev/null 2>&1; then
+    text=$(printf '%s' "$raw" | jq -r '.last_assistant_message // empty' 2>/dev/null)
+  fi
+  if [ -z "$text" ] && command -v python3 >/dev/null 2>&1; then
+    text=$(printf '%s' "$raw" | python3 -c 'import json,sys
+try: print(json.load(sys.stdin).get("last_assistant_message") or "")
+except Exception: pass' 2>/dev/null)
+  fi
+  # Fallback: walk the transcript for the last assistant text block (needs jq).
+  if [ -z "$text" ]; then
+    transcript=$(printf '%s' "$raw" \
+      | sed -n 's/.*"transcript_path"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -1)
+    if [ -n "${transcript:-}" ] && [ -f "$transcript" ] && command -v jq >/dev/null 2>&1; then
+      text=$(tail -n 80 "$transcript" \
+        | jq -r 'select(.type=="assistant") | .message.content[]? | select(.type=="text") | .text' 2>/dev/null \
+        | tail -n 1)
+    fi
   fi
 fi
-# Fallback: treat stdin as raw text (manual use, or no jq/transcript available).
+# Fallback: treat stdin as raw text (manual use, or nothing parsed above).
 [ -z "$text" ] && text="$raw"
 
 # Strip code fences/inline code and common markdown punctuation; collapse whitespace.

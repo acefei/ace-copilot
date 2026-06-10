@@ -1,6 +1,6 @@
 {
   "name": "accelerator-core",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Core Agent Accelerator skills: speak-aloud (read Claude's output via TTS, incl. Docker→host bridge) and remote-ssh-ops (safe remote work over SSH).",
   "author": { "name": "Fei Su" },
   "homepage": "https://github.com/acefei/agent-accelerator",

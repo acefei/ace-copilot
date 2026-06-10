@@ -8,6 +8,10 @@ description: Use when the user wants Claude to read or speak its responses aloud
 Make Claude Code read its responses aloud. A `Stop` hook fires after each response and
 pipes the latest assistant message into a text-to-speech (TTS) engine.
 
+It speaks the **last assistant message** (the response you just read), taken straight from
+the Stop hook's `last_assistant_message` field — extracted with `jq` *or* `python3`, so
+neither is strictly required (`python3` is usually already present).
+
 `scripts/speak.sh` auto-detects the environment at runtime:
 
 - **macOS host** → `say`
@@ -44,8 +48,8 @@ Installing the plugin auto-loads the `Stop` hook (`hooks/hooks.json` →
 `${CLAUDE_PLUGIN_ROOT}/scripts/speak.sh`). Then make sure the environment can produce audio.
 
 ### macOS / Windows host
-Works out of the box (`say` / PowerShell SAPI are built in). Transcript parsing needs
-`jq` — install if missing (`brew install jq`).
+Works out of the box (`say` / PowerShell SAPI are built in). Message extraction uses `jq`
+or `python3` — at least one is needed (`python3` is normally already installed).
 
 ### Linux host
 ```bash

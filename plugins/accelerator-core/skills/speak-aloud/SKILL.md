@@ -22,6 +22,29 @@ neither is strictly required (`python3` is usually already present).
 
 The hook never blocks the session: any TTS failure is swallowed and it exits 0.
 
+## Latest wins + active-session gating
+
+Three hooks keep speech focused on the one reply you care about:
+
+- `Stop` → speak the reply.
+- `UserPromptSubmit` → mark this session **active** and **stop any speech in progress**
+  (barge-in: the instant you type, the old reading is cancelled).
+- `SessionEnd` → stop speech when the session closes.
+
+The host TTS server is a single, stateful speaker. It tracks the **active session** (the
+last one you submitted a prompt in) and the **current utterance**:
+
+- A new reply cancels the one still playing — you only ever hear the **latest** reply.
+- Only the **active** session speaks; replies from other sessions (e.g. background agents
+  in agent view that you're not driving) are ignored. Switch to another session and type,
+  and it becomes active — the previous session goes silent.
+
+> Claude Code has no "window focus" event, so "active" = the session you last typed in.
+> A session you never type in (pure auto-run) stays silent.
+
+On a host (no container) the same gating uses a small state file
+(`$HOME/.claude/speak-aloud-active-session`) and `killall say` to cancel.
+
 ## Verify setup (run this first)
 
 The Stop hook is intentionally silent — it cannot pop a message into the chat — so it
@@ -65,6 +88,8 @@ sudo apt-get install -y jq speech-dispatcher espeak-ng   # Debian/Ubuntu
    It listens on `0.0.0.0:8765` and speaks via the host's engine. To change the port,
    set it on the pipe: `curl -fsSL <url> | PORT=9000 python3 -`. Keep it running across
    reboots with launchd (macOS), systemd (Linux), or Task Scheduler (Windows).
+   **After upgrading the plugin, restart this server** — the latest-wins/active-session
+   coordination lives in it.
    (Requires the repo to be public. Piping a URL into `python3` executes remote code — pin
    `main` to a specific tag/commit in the URL if you want an immutable, audited version.)
 2. Ensure the **container** can reach the host. Docker Desktop (macOS/Windows) provides
@@ -84,9 +109,10 @@ sudo apt-get install -y jq speech-dispatcher espeak-ng   # Debian/Ubuntu
 | `SPEAK_ALOUD_URL` | TTS server URL. **If set, forces remote mode** (POST) even on a host. | `http://host.docker.internal:8765/` |
 | `SPEAK_ALOUD_VOICE` | Voice name (macOS `say` / host server) | engine default |
 | `SPEAK_ALOUD_RATE` | Speech rate, wpm (macOS `say` / host server) | engine default |
-| `SPEAK_ALOUD_MAXCHARS` | Truncate spoken text | `1000` |
+| `SPEAK_ALOUD_MAXCHARS` | Truncate spoken text | `2000` |
 | `SPEAK_ALOUD_FORCE_REMOTE` | Force the host-server path even if not detected as a container | unset |
 | `SPEAK_ALOUD_MARKER` | Breadcrumb file written once when the server is unreachable | `$HOME/.claude/speak-aloud-server-down` |
+| `SPEAK_ALOUD_ACTIVE_FILE` | Host-mode active-session file | `$HOME/.claude/speak-aloud-active-session` |
 | `PORT` | Listen port for `tts-host-server.py` | `8765` |
 
 Container detection: an explicit `SPEAK_ALOUD_URL` or `SPEAK_ALOUD_FORCE_REMOTE`, then

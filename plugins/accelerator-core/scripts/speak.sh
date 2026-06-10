@@ -1,49 +1,45 @@
 #!/usr/bin/env bash
-# speak-aloud: speak Claude's latest response aloud.
+# speak-aloud: speak Claude's latest reply aloud, with latest-wins + active-session gating.
 #
-# Modes:
-#   speak.sh                 Stop-hook mode — reads hook JSON on stdin, speaks the
-#                            latest assistant message.
-#   echo "text" | speak.sh   Manual mode — speaks the piped text verbatim.
-#   speak.sh --check         Diagnose the current environment and TTS path; prints a
-#                            PASS/FAIL report and exits non-zero on FAIL. Use this to
-#                            tell whether audio will actually work (e.g. host server up).
+# Modes (selected by $1):
+#   (none)     Stop hook: read hook JSON on stdin, extract last_assistant_message, speak it.
+#   --active   UserPromptSubmit hook: mark this session active + stop any current speech.
+#   --cancel   SessionEnd hook: stop any current speech.
+#   --check    Diagnose the TTS path; prints PASS/FAIL, exits non-zero on FAIL.
+#   echo "x" | speak.sh   Manual: speak piped text verbatim.
 #
-# Environment detection (see in_container):
-#   - Inside a container -> POST text to a host TTS server (SPEAK_ALOUD_URL).
-#   - macOS host         -> `say`
-#   - Linux host         -> spd-say | espeak-ng | espeak | festival
-#   - Windows host       -> PowerShell SAPI
+# Container vs host is auto-detected (see in_container). In a container all signals go to
+# the host TTS server (SPEAK_ALOUD_URL); on a host they drive native TTS directly. The
+# session id (X-Session-Id) is taken from $CLAUDE_CODE_SESSION_ID or the hook payload.
 #
 # Config via env (all optional):
-#   SPEAK_ALOUD_URL          TTS server URL. If SET, forces remote mode even on a host.
+#   SPEAK_ALOUD_URL          TTS server base URL. If SET, forces remote mode even on a host.
 #                            (default when containerized: http://host.docker.internal:8765/)
 #   SPEAK_ALOUD_FORCE_REMOTE force remote mode regardless of detection
 #   SPEAK_ALOUD_VOICE        voice name (macOS `say` only)
 #   SPEAK_ALOUD_RATE         words-per-minute (macOS `say` only)
-#   SPEAK_ALOUD_MAXCHARS     truncate spoken text (default 1000)
+#   SPEAK_ALOUD_MAXCHARS     truncate spoken text (default 2000)
 #   SPEAK_ALOUD_MARKER       breadcrumb file written once when the server is unreachable
-#                            (default $HOME/.claude/speak-aloud-server-down)
+#   SPEAK_ALOUD_ACTIVE_FILE  native-mode active-session file (default under ~/.claude)
 #
-# Never blocks the session: all TTS failures are swallowed and the hook exits 0.
+# Never blocks the session: failures are swallowed and it exits 0.
 set -uo pipefail
 
 MARKER="${SPEAK_ALOUD_MARKER:-$HOME/.claude/speak-aloud-server-down}"
+ACTIVE_FILE="${SPEAK_ALOUD_ACTIVE_FILE:-$HOME/.claude/speak-aloud-active-session}"
 
 detect_os() { uname -s 2>/dev/null; }
-
-tts_url() { printf '%s' "${SPEAK_ALOUD_URL:-http://host.docker.internal:8765/}"; }
+base_url() { printf '%s' "${SPEAK_ALOUD_URL:-http://host.docker.internal:8765/}"; }
 
 in_container() {
   [ -n "${SPEAK_ALOUD_FORCE_REMOTE:-}" ] && return 0
-  [ -n "${SPEAK_ALOUD_URL:-}" ] && return 0                 # explicit URL -> remote mode
+  [ -n "${SPEAK_ALOUD_URL:-}" ] && return 0
   [ -f /.dockerenv ] && return 0
-  [ "${container:-}" = "podman" ] && return 0               # podman sets $container
+  [ "${container:-}" = "podman" ] && return 0
   grep -qaE 'docker|containerd|kubepods|podman' /proc/1/cgroup 2>/dev/null && return 0
   return 1
 }
 
-# Echo the native engine that would be used, or nothing if none is available.
 native_engine() {
   case "$(detect_os)" in
     Darwin) echo "say" ;;
@@ -54,6 +50,16 @@ native_engine() {
       done ;;
     MINGW*|MSYS*|CYGWIN*) echo "powershell" ;;
   esac
+}
+
+# Best-effort: stop any in-progress native speech (used by host-mode --active/--cancel).
+stop_native() {
+  killall say        2>/dev/null
+  pkill  -x say      2>/dev/null
+  spd-say -C         2>/dev/null
+  pkill  -x espeak-ng 2>/dev/null
+  pkill  -x espeak   2>/dev/null
+  return 0
 }
 
 speak_native() {
@@ -74,20 +80,25 @@ speak_native() {
   esac
 }
 
-post_remote() {  # $1 = text; returns curl's exit status
+# POST helpers (container mode). $1 = endpoint (speak|active|cancel).
+post_signal() {  # empty-body POST with the session header
   command -v curl >/dev/null 2>&1 || return 127
-  printf '%s' "$1" | curl -s -m 5 -X POST --data-binary @- "$(tts_url)" >/dev/null 2>&1
+  curl -s -m 5 -X POST -H "X-Session-Id: ${SID:-}" --data-binary '' "$(base_url)$1" >/dev/null 2>&1
+}
+post_speak() {   # $1 = text
+  command -v curl >/dev/null 2>&1 || return 127
+  printf '%s' "$1" | curl -s -m 5 -X POST -H "X-Session-Id: ${SID:-}" --data-binary @- "$(base_url)speak" >/dev/null 2>&1
 }
 
 # ---------------------------------------------------------------------------
-# --check: diagnose and report. Exits 0 (PASS) or 1 (FAIL).
+# --check (no stdin needed)
 # ---------------------------------------------------------------------------
 if [ "${1:-}" = "--check" ]; then
   os="$(detect_os)"
   echo "speak-aloud check"
   echo "  os:     $os"
   if in_container; then
-    url="$(tts_url)"
+    url="$(base_url)"
     echo "  mode:   container -> host TTS server"
     echo "  url:    $url"
     if ! command -v curl >/dev/null 2>&1; then
@@ -124,15 +135,47 @@ if [ "${1:-}" = "--check" ]; then
 fi
 
 # ---------------------------------------------------------------------------
-# Speak mode (Stop hook or manual stdin).
+# All other modes read the hook JSON (or piped text) from stdin.
 # ---------------------------------------------------------------------------
 raw=$(cat)
 
-# If stdin looks like Stop-hook JSON, pull the last assistant text from the transcript.
+# Session id: env first (stable per session), then the payload's session_id.
+SID="${CLAUDE_CODE_SESSION_ID:-}"
+if [ -z "$SID" ] && printf '%s' "$raw" | head -c1 | grep -q '{'; then
+  if command -v jq >/dev/null 2>&1; then
+    SID=$(printf '%s' "$raw" | jq -r '.session_id // empty' 2>/dev/null)
+  fi
+  if [ -z "$SID" ] && command -v python3 >/dev/null 2>&1; then
+    SID=$(printf '%s' "$raw" | python3 -c 'import json,sys
+try: print(json.load(sys.stdin).get("session_id") or "")
+except Exception: pass' 2>/dev/null)
+  fi
+fi
+
+MODE="${1:-speak}"
+
+# --- active: this session becomes the speaking one; stop prior speech (barge-in) ----
+if [ "$MODE" = "--active" ]; then
+  if in_container; then
+    post_signal active || true
+  else
+    mkdir -p "$(dirname "$ACTIVE_FILE")" 2>/dev/null
+    printf '%s' "$SID" > "$ACTIVE_FILE" 2>/dev/null || true
+    stop_native
+  fi
+  exit 0
+fi
+
+# --- cancel: stop current speech (session ended) ------------------------------------
+if [ "$MODE" = "--cancel" ]; then
+  if in_container; then post_signal cancel || true; else stop_native; fi
+  exit 0
+fi
+
+# --- speak (default): extract the visible reply and speak it -------------------------
 text=""
 if printf '%s' "$raw" | head -c1 | grep -q '{'; then
-  # Stop-hook JSON. Prefer `last_assistant_message` — exactly the response the user
-  # just read — extracted with jq or python3 (so jq is not a hard requirement).
+  # Prefer last_assistant_message (the response the user just read) via jq or python3.
   if command -v jq >/dev/null 2>&1; then
     text=$(printf '%s' "$raw" | jq -r '.last_assistant_message // empty' 2>/dev/null)
   fi
@@ -141,7 +184,7 @@ if printf '%s' "$raw" | head -c1 | grep -q '{'; then
 try: print(json.load(sys.stdin).get("last_assistant_message") or "")
 except Exception: pass' 2>/dev/null)
   fi
-  # Fallback: walk the transcript for the last assistant text block (needs jq).
+  # Fallback: last assistant text block in the transcript (needs jq).
   if [ -z "$text" ]; then
     transcript=$(printf '%s' "$raw" \
       | sed -n 's/.*"transcript_path"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -1)
@@ -155,23 +198,34 @@ fi
 # Fallback: treat stdin as raw text (manual use, or nothing parsed above).
 [ -z "$text" ] && text="$raw"
 
-# Strip code fences/inline code and common markdown punctuation; collapse whitespace.
-clean=$(printf '%s' "$text" \
-  | sed -e 's/```[^`]*```//g' -e 's/`[^`]*`//g' -e 's/[#*_>`|]//g' \
+# Make it listenable: drop fenced code and table rows, then inline code / URLs / list
+# and heading markers / residual markdown; collapse whitespace.
+clean=$(printf '%s\n' "$text" \
+  | awk '/^[[:space:]]*```/{f=!f;next} f{next} /^[[:space:]]*\|/{next} {print}' \
+  | sed -E -e 's/`[^`]*`//g' \
+           -e 's#https?://[^[:space:])]*##g' \
+           -e 's/^[[:space:]]*[-*+][[:space:]]+//' \
+           -e 's/^[[:space:]]*#+[[:space:]]*//' \
+           -e 's/[*_`>#|]//g' \
   | tr '\n' ' ' | tr -s ' ')
-maxchars=${SPEAK_ALOUD_MAXCHARS:-1000}
+maxchars=${SPEAK_ALOUD_MAXCHARS:-2000}
 clean=$(printf '%s' "$clean" | cut -c1-"$maxchars")
 [ -z "${clean// /}" ] && exit 0
 
 if in_container; then
-  if post_remote "$clean"; then
-    rm -f "$MARKER" 2>/dev/null                    # success clears the breadcrumb
-  elif [ ! -f "$MARKER" ]; then                    # one-time breadcrumb, don't nag
+  if post_speak "$clean"; then
+    rm -f "$MARKER" 2>/dev/null
+  elif [ ! -f "$MARKER" ]; then
     mkdir -p "$(dirname "$MARKER")" 2>/dev/null
     printf 'speak-aloud: host TTS server unreachable at %s\nStart it on the host, or run: speak.sh --check\n' \
-      "$(tts_url)" > "$MARKER" 2>/dev/null || true
+      "$(base_url)" > "$MARKER" 2>/dev/null || true
   fi
 else
-  speak_native "$clean" >/dev/null 2>&1 || true
+  # Host mode: only the active session speaks; latest wins.
+  active=""; [ -f "$ACTIVE_FILE" ] && active=$(cat "$ACTIVE_FILE" 2>/dev/null)
+  if [ -z "$active" ] || [ -z "$SID" ] || [ "$active" = "$SID" ]; then
+    stop_native
+    speak_native "$clean" >/dev/null 2>&1 &
+  fi
 fi
 exit 0

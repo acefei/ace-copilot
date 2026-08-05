@@ -11,6 +11,7 @@ MCP servers that users can install into Claude Code.
 | Plugin | Provides | Description |
 |--------|----------|-------------|
 | [`accelerator-core`](plugins/accelerator-core) | `/speak-aloud` command + `remote-ssh-ops` skill | Read Claude's replies aloud via TTS (toggleable, incl. Docker→host bridge), and a primitive for safe remote work over SSH. |
+| [`accelerator-loops`](plugins/accelerator-loops) | `/setup-loops` + `/loop-create` `/loop-run` `/loop-status` `/loop-remove` commands | Claude Loops: scaffold a `claude-loops/` workspace and drive repeatable, verified workflows via slash commands. |
 
 ## Install (for users)
 
@@ -18,8 +19,9 @@ MCP servers that users can install into Claude Code.
 # Add this marketplace
 claude marketplace add agent-accelerator acefei/agent-accelerator
 
-# Install the plugin
+# Install a plugin
 claude plugin install accelerator-core@agent-accelerator
+claude plugin install accelerator-loops@agent-accelerator
 
 # Verify
 claude plugin list
@@ -34,12 +36,17 @@ agent-accelerator/
 ├── .claude-plugin/
 │   └── marketplace.json            # marketplace manifest (lists plugins)
 └── plugins/
-    └── accelerator-core/           # a plugin (bundles multiple skills)
-        ├── .claude-plugin/
-        │   └── plugin.json         # plugin manifest
-        ├── hooks/hooks.json        # hooks (auto-discovered)
-        ├── scripts/                # files referenced via ${CLAUDE_PLUGIN_ROOT}
-        ├── skills/                 # one dir per skill, each with SKILL.md
+    ├── accelerator-core/           # a plugin (bundles multiple skills)
+    │   ├── .claude-plugin/
+    │   │   └── plugin.json         # plugin manifest
+    │   ├── hooks/hooks.json        # hooks (auto-discovered)
+    │   ├── scripts/                # files referenced via ${CLAUDE_PLUGIN_ROOT}
+    │   ├── skills/                 # one dir per skill, each with SKILL.md
+    │   └── README.md
+    └── accelerator-loops/          # Claude Loops plugin
+        ├── .claude-plugin/plugin.json
+        ├── commands/               # setup-loops, loop-create/run/status/remove
+        ├── templates/              # bundled scaffolding (${CLAUDE_PLUGIN_ROOT})
         └── README.md
 ```
 

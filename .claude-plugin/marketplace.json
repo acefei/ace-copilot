@@ -7,7 +7,7 @@
   },
   "metadata": {
     "description": "Agent Accelerator — a Claude Code plugin marketplace",
-    "version": "0.3.0"
+    "version": "0.4.0"
   },
   "plugins": [
     {
@@ -19,6 +19,16 @@
       "keywords": ["tts", "text-to-speech", "audio", "docker", "ssh", "remote", "automation"],
       "license": "MIT",
       "version": "0.3.0"
+    },
+    {
+      "name": "accelerator-loops",
+      "description": "Claude Loops: repeatable, verified workflows around the model. Scaffold a claude-loops/ workspace and drive loops (create, run, status, remove) via slash commands.",
+      "source": "./plugins/accelerator-loops",
+      "author": { "name": "Fei Su" },
+      "category": "productivity",
+      "keywords": ["loops", "workflow", "automation", "agent", "scaffold", "verification"],
+      "license": "MIT",
+      "version": "0.1.0"
     }
   ]
 }

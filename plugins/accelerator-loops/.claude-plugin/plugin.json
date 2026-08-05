@@ -1,0 +1,10 @@
+{
+  "name": "accelerator-loops",
+  "version": "0.1.0",
+  "description": "Claude Loops: repeatable, verified workflows around the model. Scaffold a claude-loops/ workspace and drive loops (create, run, status, remove) via slash commands.",
+  "author": { "name": "Fei Su" },
+  "homepage": "https://github.com/acefei/agent-accelerator",
+  "repository": "https://github.com/acefei/agent-accelerator",
+  "license": "MIT",
+  "keywords": ["loops", "workflow", "automation", "agent", "scaffold", "verification"]
+}

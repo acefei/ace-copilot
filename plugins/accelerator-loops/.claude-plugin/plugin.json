@@ -1,6 +1,6 @@
 {
   "name": "accelerator-loops",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Claude Loops: repeatable, verified workflows around the model. Scaffold a claude-loops/ workspace and drive loops (create, run, status, remove) via slash commands.",
   "author": {
     "name": "Fei Su"

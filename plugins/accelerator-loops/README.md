@@ -13,7 +13,7 @@ progress log, verification checklist, and outputs.
 | Command | Does |
 |---------|------|
 | `/accelerator-loops:setup-loops` | Initialize `claude-loops/` in this project from the bundled template (idempotent; `setup-loops example` also drops a sample loop). |
-| `/accelerator-loops:loop-create <name> ["goal"]` | Scaffold a new loop from `claude-loops/_template/`. |
+| `/accelerator-loops:loop-create [name] ["goal"]` | **Interviews you step by step** — gate, goal, trigger, context, action, verification, state, stop condition, permission level — then scaffolds a loop from `claude-loops/_template/` with every file filled in. |
 | `/accelerator-loops:loop-run <name>` | Run exactly one iteration: read the loop's `TASK`/`PROGRESS`/`LOOP_INSTRUCTIONS`, act, verify (PASS/FAIL per item), update progress. |
 | `/accelerator-loops:loop-status [name]` | Report each loop's state from its `PROGRESS.md` (read-only). |
 | `/accelerator-loops:loop-remove <name>` | Delete a loop directory (shows what will be lost, then asks to confirm). |
@@ -22,8 +22,8 @@ progress log, verification checklist, and outputs.
 
 ```text
 /accelerator-loops:setup-loops                       # create claude-loops/ from the template
-/accelerator-loops:loop-create sync "keep forks in sync with upstream"
-# edit claude-loops/sync/TASK.md and LOOP_INSTRUCTIONS.md
+/accelerator-loops:loop-create sync "keep forks in sync with upstream"   # answers a short interview
+# review claude-loops/sync/TASK.md and LOOP_INSTRUCTIONS.md (already filled in)
 /accelerator-loops:loop-run sync                     # run by hand a few times, review outputs
 /accelerator-loops:loop-status                       # check state
 /loop 1h /accelerator-loops:loop-run sync            # schedule only once it is proven

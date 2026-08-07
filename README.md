@@ -11,7 +11,7 @@ MCP servers that users can install into Claude Code.
 | Plugin | Provides | Description |
 |--------|----------|-------------|
 | [`accelerator-core`](plugins/accelerator-core) | `/speak-aloud` command + `remote-ssh-ops` skill | Read Claude's replies aloud via TTS (toggleable, incl. Docker→host bridge), and a primitive for safe remote work over SSH. |
-| [`accelerator-loops`](plugins/accelerator-loops) | `/setup-loops` + `/loop-create` `/loop-run` `/loop-status` `/loop-remove` commands | Claude Loops: scaffold a `claude-loops/` workspace and drive repeatable, verified workflows via slash commands. `loop-create` interviews you step by step and writes a fully-filled loop. |
+| [`accelerator-loops`](plugins/accelerator-loops) | `/setup-loops` + `/loop-create` `/loop-run` `/loop-status` `/loop-stop` `/loop-remove` commands | Claude Loops: scaffold a `claude-loops/` workspace and drive repeatable, verified workflows via slash commands. `loop-create` interviews you step by step and writes a fully-filled loop. |
 
 ## Install (for users)
 
@@ -45,7 +45,7 @@ agent-accelerator/
     │   └── README.md
     └── accelerator-loops/          # Claude Loops plugin
         ├── .claude-plugin/plugin.json
-        ├── commands/               # setup-loops, loop-create/run/status/remove
+        ├── commands/               # setup-loops, loop-create/run/status/stop/remove
         ├── templates/              # bundled scaffolding (${CLAUDE_PLUGIN_ROOT})
         └── README.md
 ```

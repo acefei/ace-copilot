@@ -19,6 +19,7 @@ sync→verify, audit→fix) runs to a **machine-checkable** done-condition inste
 | `/accelerator-loops:loop-create [name] ["goal"]` | **Interviews you step by step** — gate, goal, trigger, context, action, verification, state, stop condition, permission level — then scaffolds a loop from `claude-loops/_template/` with every file filled in. |
 | `/accelerator-loops:loop-run <name>` | Run exactly one iteration: read the loop's `TASK`/`PROGRESS`/`LOOP_INSTRUCTIONS`, act, verify (PASS/FAIL per item), update progress. |
 | `/accelerator-loops:loop-status [name]` | Report each loop's state from its `PROGRESS.md` (read-only). |
+| `/accelerator-loops:loop-stop <name>` | Unschedule a loop — cancels its `/loop` job but keeps the loop folder and its `PROGRESS.md`. Use this instead of `loop-remove` when you want to pause, not delete. |
 | `/accelerator-loops:loop-remove <name>` | Delete a loop directory (shows what will be lost, then asks to confirm). |
 
 ## Quickstart
@@ -201,7 +202,7 @@ done, and `loop-remove` warns when a loop is untracked.
 ```
 accelerator-loops/
 ├── .claude-plugin/plugin.json
-├── commands/                  # setup-loops, loop-create, loop-run, loop-status, loop-remove
+├── commands/                  # setup-loops, loop-create/run/status/stop/remove
 ├── templates/                 # bundled scaffolding copied by setup-loops (${CLAUDE_PLUGIN_ROOT})
 │   ├── _template/
 │   └── branch-sync/           # sample loop (installed by `setup-loops example`)
